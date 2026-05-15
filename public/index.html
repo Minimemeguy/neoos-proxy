@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NeoOS Browser</title>
+  <style>
+    /* ── Reset & base ───────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --accent: #3b82f6;
+      --bg: #0d1117;
+      --surface: rgba(255,255,255,0.06);
+      --border: rgba(255,255,255,0.10);
+      --text: #f0f6fc;
+      --muted: rgba(240,246,252,0.45);
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Nav bar ────────────────────────────────── */
+    #navbar {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 12px;
+      background: rgba(0,0,0,0.45);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+
+    .btn {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      border: none;
+      background: var(--surface);
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.15s, color 0.15s;
+      user-select: none;
+    }
+    .btn:hover { background: rgba(255,255,255,0.12); color: var(--text); }
+    .btn:active { transform: scale(0.93); }
+    .btn:disabled { opacity: 0.3; pointer-events: none; }
+
+    #urlbar {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      color: var(--text);
+      font-size: 13px;
+      padding: 7px 16px;
+      outline: none;
+      font-family: inherit;
+      transition: border-color 0.2s, background 0.2s;
+      min-width: 0;
+    }
+    #urlbar:focus {
+      border-color: var(--accent);
+      background: rgba(59,130,246,0.08);
+    }
+    #urlbar::placeholder { color: rgba(255,255,255,0.28); }
+
+    #gobtn {
+      background: var(--accent);
+      border: none;
+      color: white;
+      border-radius: 8px;
+      padding: 7px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      flex-shrink: 0;
+      font-family: inherit;
+      transition: opacity 0.15s;
+    }
+    #gobtn:hover { opacity: 0.85; }
+    #gobtn:active { transform: scale(0.96); }
+
+    /* ── Status strip ───────────────────────────── */
+    #statusbar {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 3px 14px;
+      background: rgba(0,0,0,0.3);
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      font-size: 11px;
+      color: var(--muted);
+      flex-shrink: 0;
+      min-height: 22px;
+    }
+
+    #sdot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #6b7280;
+      flex-shrink: 0;
+      transition: background 0.3s;
+    }
+    #sdot.initializing { background: #f59e0b; animation: blink 1.2s ease-in-out infinite; }
+    #sdot.ready        { background: #22c55e; }
+    #sdot.loading      { background: #3b82f6; animation: blink 0.8s ease-in-out infinite; }
+    #sdot.error        { background: #ef4444; }
+
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    /* ── Main content area ──────────────────────── */
+    #content {
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* HOME SCREEN */
+    #home {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      padding: 40px 20px;
+      background:
+        radial-gradient(ellipse 70% 60% at 30% 40%, rgba(59,130,246,0.10), transparent 70%),
+        radial-gradient(ellipse 50% 40% at 75% 65%, rgba(139,92,246,0.07), transparent 70%);
+    }
+
+    .home-logo {
+      font-size: 44px;
+      font-weight: 700;
+      letter-spacing: -2px;
+      background: linear-gradient(130deg, #ffffff, var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      line-height: 1;
+    }
+
+    .home-sub {
+      font-size: 14px;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.6;
+      max-width: 340px;
+    }
+
+    .quick-links {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+      max-width: 420px;
+      margin-top: 4px;
+    }
+
+    .ql {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 14px;
+      font-size: 12.5px;
+      cursor: pointer;
+      color: rgba(255,255,255,0.72);
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+      user-select: none;
+    }
+    .ql:hover {
+      background: rgba(59,130,246,0.14);
+      border-color: rgba(59,130,246,0.35);
+      color: white;
+    }
+
+    /* ERROR SCREEN */
+    #errscreen {
+      display: none;
+      flex: 1;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 40px;
+      text-align: center;
+    }
+    #errscreen.show { display: flex; }
+    .err-icon  { font-size: 44px; line-height: 1; }
+    .err-title { font-size: 19px; font-weight: 600; }
+    .err-msg   { font-size: 13px; color: var(--muted); max-width: 320px; line-height: 1.65; white-space: pre-wrap; }
+    .err-back  {
+      background: var(--accent);
+      border: none;
+      color: white;
+      border-radius: 9px;
+      padding: 9px 22px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      margin-top: 8px;
+      font-family: inherit;
+    }
+
+    /* NO SERVICE WORKER SCREEN */
+    #swscreen {
+      display: none;
+      flex: 1;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 40px;
+      text-align: center;
+    }
+    #swscreen.show { display: flex; }
+
+    /* PROXY IFRAME */
+    #proxyframe {
+      display: none;
+      flex: 1;
+      border: none;
+      width: 100%;
+      background: white;
+    }
+    #proxyframe.show { display: block; }
+
+    /* LOADING OVERLAY */
+    #loadoverlay {
+      display: none;
+      position: absolute;
+      inset: 0;
+      background: rgba(13,17,23,0.82);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+    #loadoverlay.show { display: flex; }
+
+    .spinner {
+      width: 34px;
+      height: 34px;
+      border: 3px solid rgba(255,255,255,0.1);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+  <!-- ── Navigation Bar ─────────────────────────── -->
+  <div id="navbar">
+    <button class="btn" id="btn-back"   title="Back"    onclick="navBack()">&#8592;</button>
+    <button class="btn" id="btn-fwd"    title="Forward" onclick="navForward()">&#8594;</button>
+    <button class="btn" id="btn-reload" title="Reload"  onclick="navReload()">&#8635;</button>
+    <button class="btn" id="btn-home"   title="Home"    onclick="showHome()">&#8962;</button>
+
+    <input
+      id="urlbar"
+      placeholder="Search or enter a web address..."
+      autocomplete="off"
+      autocorrect="off"
+      spellcheck="false"
+      onkeydown="if(event.key === 'Enter') navigate()"
+    />
+
+    <button id="gobtn" onclick="navigate()">Go</button>
+  </div>
+
+  <!-- ── Status Strip ──────────────────────────── -->
+  <div id="statusbar">
+    <div id="sdot" class="initializing"></div>
+    <span id="stxt">Starting up...</span>
+  </div>
+
+  <!-- ── Content ──────────────────────────────── -->
+  <div id="content">
+
+    <!-- Home screen -->
+    <div id="home">
+      <div class="home-logo">NeoOS Browser</div>
+      <div class="home-sub">
+        Powered by Scramjet &mdash; enter a URL above to browse<br>
+        <span style="font-size:11px;color:rgba(255,255,255,0.22)">
+          Traffic is tunneled encrypted through Wisp + libcurl
+        </span>
+      </div>
+      <div class="quick-links">
+        <div class="ql" onclick="goTo('https://google.com')">&#128269; Google</div>
+        <div class="ql" onclick="goTo('https://youtube.com')">&#128250; YouTube</div>
+        <div class="ql" onclick="goTo('https://wikipedia.org')">&#128218; Wikipedia</div>
+        <div class="ql" onclick="goTo('https://reddit.com')">&#128172; Reddit</div>
+        <div class="ql" onclick="goTo('https://github.com')">&#128025; GitHub</div>
+        <div class="ql" onclick="goTo('https://discord.com/app')">&#127926; Discord</div>
+        <div class="ql" onclick="goTo('https://twitch.tv')">&#127918; Twitch</div>
+        <div class="ql" onclick="goTo('https://x.com')">&#128038; X</div>
+      </div>
+    </div>
+
+    <!-- Error screen -->
+    <div id="errscreen">
+      <div class="err-icon">&#9888;&#65039;</div>
+      <div class="err-title" id="errtitle">Something went wrong</div>
+      <div class="err-msg"   id="errmsg">An unknown error occurred.</div>
+      <button class="err-back" onclick="showHome()">&#8592; Go Home</button>
+    </div>
+
+    <!-- No service worker support screen -->
+    <div id="swscreen">
+      <div style="font-size:44px">&#128683;</div>
+      <div style="font-size:19px;font-weight:600">HTTPS Required</div>
+      <div style="font-size:13px;color:var(--muted);max-width:300px;line-height:1.65">
+        Scramjet needs <strong>Service Workers</strong> to run, which only
+        work over <strong>HTTPS</strong> or <code>localhost</code>.<br><br>
+        Make sure you deployed this to Render.com (which gives you HTTPS
+        automatically) and access it via the <code>https://</code> URL.
+      </div>
+    </div>
+
+    <!-- Proxy iframe — Scramjet navigates this -->
+    <iframe
+      id="proxyframe"
+      sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals allow-downloads"
+      allow="fullscreen"
+    ></iframe>
+
+    <!-- Loading overlay -->
+    <div id="loadoverlay">
+      <div class="spinner"></div>
+    </div>
+
+  </div>
+
+  <!--
+    Scripts must load in this exact order:
+    1. BareMux (transport multiplexer)
+    2. Scramjet all-bundle (loads the controller API)
+  -->
+  <script src="/baremux/index.js"></script>
+  <script src="/scram/scramjet.all.js"></script>
+
+  <script>
+    "use strict";
+
+    // ── Wisp URL (auto-detects http vs https) ─────────
+    var WISP_URL = (location.protocol === "https:" ? "wss" : "ws")
+      + "://" + location.host + "/wisp/";
+
+    // ── State ─────────────────────────────────────────
+    var controller = null;   // ScramjetController instance
+    var isReady    = false;  // true once fully initialized
+    var currentUrl = "";     // last navigated URL
+
+    // ── DOM shortcuts ─────────────────────────────────
+    var homeEl      = document.getElementById("home");
+    var errEl       = document.getElementById("errscreen");
+    var swEl        = document.getElementById("swscreen");
+    var frameEl     = document.getElementById("proxyframe");
+    var loadEl      = document.getElementById("loadoverlay");
+    var sdot        = document.getElementById("sdot");
+    var stxt        = document.getElementById("stxt");
+    var urlbar      = document.getElementById("urlbar");
+
+    // ── Status helper ─────────────────────────────────
+    function setStatus(state, message) {
+      sdot.className = state;   // "initializing" | "ready" | "loading" | "error" | ""
+      stxt.textContent = message;
+    }
+
+    // ── Boot sequence ─────────────────────────────────
+    async function boot() {
+      // Step 1 — check that Service Workers are available
+      if (!("serviceWorker" in navigator)) {
+        homeEl.style.display = "none";
+        swEl.classList.add("show");
+        setStatus("error", "Service Workers not available — needs HTTPS");
+        return;
+      }
+
+      try {
+        // Step 2 — register the Scramjet service worker
+        setStatus("initializing", "Registering service worker...");
+        await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+
+        // Wait until the service worker is active and controlling the page
+        await navigator.serviceWorker.ready;
+        setStatus("initializing", "Service worker active. Loading Scramjet...");
+
+        // Step 3 — create and init the Scramjet controller
+        // $scramjetLoadController is a global injected by scramjet.all.js
+        var { ScramjetController } = $scramjetLoadController();
+
+        controller = new ScramjetController({
+          files: {
+            wasm: "/scram/scramjet.wasm.wasm",   // WebAssembly rewriter
+            all:  "/scram/scramjet.all.js",       // Main bundle
+            sync: "/scram/scramjet.sync.js",      // Sync worker
+          },
+          flags: {
+            captureErrors:  true,
+            strictRewrites: true,
+          },
+        });
+
+        // Sends the config to the service worker
+        await controller.init();
+        setStatus("initializing", "Connecting encrypted transport...");
+
+        // Step 4 — set up the transport (libcurl over Wisp)
+        // BareMux.BareMuxConnection is injected by /baremux/index.js
+        var connection = new BareMux.BareMuxConnection("/baremux/worker.js");
+
+        // libcurl-transport tunnels HTTP/S requests encrypted over Wisp WebSocket
+        await connection.setTransport("/libcurl/index.js", [{ wisp: WISP_URL }]);
+
+        // ── All done ─────────────────────────────────
+        isReady = true;
+        setStatus("ready", "Ready \u2014 all traffic is proxied & encrypted via Wisp");
+
+      } catch (err) {
+        console.error("[NeoOS Browser] Boot failed:", err);
+        setStatus("error", "Startup failed: " + err.message);
+        showError(
+          "Startup Failed",
+          "Could not initialize Scramjet.\n\n" +
+          "Make sure the server is running and you\u2019re on the HTTPS URL.\n\n" +
+          "Error: " + err.message
+        );
+      }
+    }
+
+    // ── Navigate to a URL ─────────────────────────────
+    function navigate() {
+      var raw = urlbar.value.trim();
+      if (raw) goTo(raw);
+    }
+
+    function goTo(raw) {
+      if (!isReady) {
+        setStatus("initializing", "Still starting up \u2014 please wait a moment...");
+        return;
+      }
+
+      // Normalize: add https:// if no protocol given
+      var url = /^https?:\/\//i.test(raw) ? raw : "https://" + raw;
+      currentUrl = url;
+      urlbar.value = url;
+
+      // Show loading state
+      homeEl.style.display = "none";
+      errEl.classList.remove("show");
+      frameEl.classList.remove("show");
+      loadEl.classList.add("show");
+      setStatus("loading", "Loading " + url + "...");
+
+      try {
+        // Encode the real URL into a Scramjet proxy URL
+        var proxiedUrl = controller.encodeUrl(url);
+        frameEl.src = proxiedUrl;
+        frameEl.classList.add("show");
+      } catch (encodeErr) {
+        loadEl.classList.remove("show");
+        showError("URL Error", "Could not encode URL:\n" + encodeErr.message);
+        return;
+      }
+
+      // When the iframe finishes loading
+      frameEl.onload = function () {
+        loadEl.classList.remove("show");
+        setStatus("ready", "Loaded \u2014 " + url);
+        // Try to read the actual page URL back from the iframe
+        try {
+          var decoded = controller.decodeUrl(frameEl.contentWindow.location.href);
+          if (decoded && decoded !== "about:blank") {
+            urlbar.value = decoded;
+            currentUrl   = decoded;
+          }
+        } catch (_) { /* cross-origin — that's fine */ }
+      };
+
+      frameEl.onerror = function () {
+        loadEl.classList.remove("show");
+        setStatus("error", "Failed to load page");
+        showError("Page Failed to Load",
+          "The page could not be loaded through the proxy.\n\n" +
+          "This can happen if:\n" +
+          "\u2022 The site blocks proxies\n" +
+          "\u2022 The Wisp server is down\n" +
+          "\u2022 Your network is blocking WebSocket connections"
+        );
+      };
+    }
+
+    // ── Navigation controls ───────────────────────────
+    function navBack() {
+      try { frameEl.contentWindow.history.back(); } catch (_) {}
+    }
+    function navForward() {
+      try { frameEl.contentWindow.history.forward(); } catch (_) {}
+    }
+    function navReload() {
+      try {
+        frameEl.contentWindow.location.reload();
+      } catch (_) {
+        if (currentUrl) goTo(currentUrl);
+      }
+    }
+
+    // ── Screens ───────────────────────────────────────
+    function showHome() {
+      frameEl.classList.remove("show");
+      frameEl.src = "about:blank";
+      errEl.classList.remove("show");
+      homeEl.style.display = "flex";
+      urlbar.value = "";
+      currentUrl   = "";
+      if (isReady) setStatus("ready", "Ready");
+    }
+
+    function showError(title, msg) {
+      homeEl.style.display = "none";
+      frameEl.classList.remove("show");
+      loadEl.classList.remove("show");
+      errEl.classList.add("show");
+      document.getElementById("errtitle").textContent = title;
+      document.getElementById("errmsg").textContent   = msg;
+    }
+
+    // ── Start ─────────────────────────────────────────
+    boot();
+  </script>
+</body>
+</html>
