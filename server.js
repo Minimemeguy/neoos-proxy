@@ -1,37 +1,44 @@
 // ============================================================
-// NeoOS Scramjet Proxy Server
-// Optimized for Render Free Tier
+// NeoOS Scramjet Proxy Server (Render Fixed + ESM Safe)
 // ============================================================
 
 import Fastify from "fastify";
 import fastifyStatic from "@fastify/static";
 import { WebSocketServer } from "ws";
 
-import { scramjetPath } from "@mercuryworkshop/scramjet/path";
 import { createRequire } from "module";
-const require = createRequire(import.meta.url);
-
-const baremuxPath = require.resolve("@mercuryworkshop/bare-mux");
-import { libcurlPath } from "@mercuryworkshop/libcurl-transport/path";
-
-import { routeRequest } from "@mercuryworkshop/wisp-js/server";
-
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 
+import { routeRequest } from "@mercuryworkshop/wisp-js/server";
+
+const require = createRequire(import.meta.url);
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const PORT = process.env.PORT || 8080;
 
+// ✅ SAFE package resolution (Render + Node 20 compatible)
+const scramjetPath = dirname(
+  require.resolve("@mercuryworkshop/scramjet/package.json")
+);
+
+const baremuxPath = dirname(
+  require.resolve("@mercuryworkshop/bare-mux/package.json")
+);
+
+const libcurlPath = dirname(
+  require.resolve("@mercuryworkshop/libcurl-transport/package.json")
+);
+
 // ─────────────────────────────────────────────
-// Create Fastify app
+// Fastify app
 // ─────────────────────────────────────────────
 const app = Fastify({
   logger: true,
 });
 
 // ─────────────────────────────────────────────
-// Serve Scramjet engine
+// Scramjet engine
 // ─────────────────────────────────────────────
 await app.register(fastifyStatic, {
   root: scramjetPath,
@@ -39,7 +46,7 @@ await app.register(fastifyStatic, {
 });
 
 // ─────────────────────────────────────────────
-// Serve BareMux
+// BareMux transport
 // ─────────────────────────────────────────────
 await app.register(fastifyStatic, {
   root: baremuxPath,
@@ -48,7 +55,7 @@ await app.register(fastifyStatic, {
 });
 
 // ─────────────────────────────────────────────
-// Serve libcurl transport
+// libcurl transport
 // ─────────────────────────────────────────────
 await app.register(fastifyStatic, {
   root: libcurlPath,
@@ -57,7 +64,7 @@ await app.register(fastifyStatic, {
 });
 
 // ─────────────────────────────────────────────
-// Serve frontend
+// Frontend
 // ─────────────────────────────────────────────
 await app.register(fastifyStatic, {
   root: join(__dirname, "public"),
@@ -65,28 +72,21 @@ await app.register(fastifyStatic, {
   decorateReply: false,
 });
 
-// ─────────────────────────────────────────────
 // SPA fallback
-// ─────────────────────────────────────────────
-app.setNotFoundHandler((req, reply) => {
+app.setNotFoundHandler((_req, reply) => {
   reply.sendFile("index.html");
 });
 
-// ─────────────────────────────────────────────
-// Wait for plugins
-// ─────────────────────────────────────────────
 await app.ready();
 
 // ─────────────────────────────────────────────
-// WebSocket server for Wisp
+// Wisp WebSocket server
 // ─────────────────────────────────────────────
-const wss = new WebSocketServer({
-  noServer: true,
-});
+const wss = new WebSocketServer({ noServer: true });
 
 app.server.on("upgrade", (request, socket, head) => {
   try {
-    if (request.url.startsWith("/wisp/")) {
+    if (request.url && request.url.startsWith("/wisp/")) {
       wss.handleUpgrade(request, socket, head, (ws) => {
         routeRequest(ws, request);
       });
