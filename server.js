@@ -8,7 +8,10 @@ import fastifyStatic from "@fastify/static";
 import { WebSocketServer } from "ws";
 
 import { scramjetPath } from "@mercuryworkshop/scramjet/path";
-import { baremuxPath } from "@mercuryworkshop/bare-mux/path";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+
+const baremuxPath = require.resolve("@mercuryworkshop/bare-mux");
 import { libcurlPath } from "@mercuryworkshop/libcurl-transport/path";
 
 import { routeRequest } from "@mercuryworkshop/wisp-js/server";
